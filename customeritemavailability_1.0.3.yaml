@@ -1,0 +1,460 @@
+swagger: '2.0'
+info:
+  description: >-
+    CustomerItemAvailability API - Note that this is an extendable interface
+    that might introduce new types without increase in major version including
+    new values in enumerations.
+  version: 1.0.3
+  title: Customer Item Availability API
+  contact:
+    email: CIA-team@ikea.com
+  x-ibm-name: customeritemavailability
+basePath: /cia
+tags:
+  - name: Customer Item Availability
+schemes:
+  - https
+produces:
+  - application/vnd.ikea.api+json
+paths:
+  '/availabilities/{classUnitType}/{classUnitCode}':
+    options:
+      tags:
+        - Availability
+      operationId: Options
+      parameters:
+        - name: classUnitType
+          in: path
+          description: See documentation for GET request
+          required: true
+          type: string
+          enum:
+            - ru
+            - sto
+        - name: classUnitCode
+          in: path
+          description: See documentation for GET request
+          required: true
+          type: string
+          maxLength: 5
+          minLength: 2
+      responses:
+        200:
+          description: ...
+          headers:
+            Access-Control-Max-Age:
+              type: number
+              default: 600
+    get:
+      tags:
+        - Availability
+      summary: >-
+        Get availability information of the chosen sales item. Used to
+        communicate availability information in sales and customer communication
+        scenarios.
+      description: >-
+        Get the current sales items availability information for the given item
+        key(s) for a specific class unit (currently Business Unit with correct
+        identifier).
+      operationId: GetItemAvailability
+      parameters:
+        - name: classUnitType
+          in: path
+          description: The type of unit (ru = Retail Unit/Market or sto = Store)
+          required: true
+          type: string
+          enum:
+            - ru
+            - sto
+        - name: classUnitCode
+          in: path
+          description: The identifier for the specific unit
+          required: true
+          type: string
+          maxLength: 5
+          minLength: 2
+        - name: itemNos
+          in: query
+          description: >-
+            One or many item numbers (maximum 50). If more than one - separated
+            by  commas
+          required: true
+          type: array
+          items:
+            type: string
+            minLength: 8
+            maxLength: 15
+          collectionFormat: csv
+          maxItems: 50
+          minItems: 1
+          uniqueItems: true
+        - name: expand
+          in: query
+          description: >-
+            Optional filter to return complete information for child items in
+            the ItemCommunication API. By default only `itemKey` and `quantity`
+            is returned.
+          required: false
+          type: string
+          enum:
+            - ChildItems
+      responses:
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              type: string
+          schema:
+            $ref: '#/definitions/availabilityResponse'
+        '400':
+          description: >-
+            Bad Request. Typically if one of the input parameters is found
+            incorrect. 
+          schema:
+            $ref: '#/definitions/availabilityResponse'
+        '401':
+          description: Not Authorized
+          schema:
+            $ref: '#/definitions/availabilityResponse'
+        '403':
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/availabilityResponse'
+        '404':
+          description: >-
+            Not found - none of the item numbers are not found. Assuming
+            correctly formed request URL (i.e. request is actually reaching API
+            provider). More information in error payload.
+          schema:
+            $ref: '#/definitions/availabilityResponse'
+        '500':
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/availabilityResponse'
+        '503':
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/availabilityResponse'
+        '504':
+          description: Gateway Timeout
+          schema:
+            $ref: '#/definitions/availabilityResponse'
+definitions:
+  availabilityResponse:
+    type: object
+    required:
+      - traceId
+    properties:
+      data:
+        type: array
+        uniqueItems: true
+        x-omitempty: true
+        items:
+          $ref: '#/definitions/itemAvailability'
+        x-proto-tag: 1
+      error:
+        $ref: '#/definitions/status'
+      traceId:
+        $ref: '#/definitions/traceId'
+    additionalProperties: {}
+    x-reference-proto-tags:
+      error: 2
+      traceId: 3
+  itemAvailability:
+    type: object
+    required:
+      - classUnitKey
+      - itemKey
+      - isInCashAndCarryRange
+      - isInHomeDeliveryRange
+    properties:
+      classUnitKey:
+        $ref: '#/definitions/classUnitKey'
+      itemKey:
+        $ref: '#/definitions/itemKey'
+      isInCashAndCarryRange:
+        type: boolean
+      isInHomeDeliveryRange:
+        type: boolean
+      availableStocks:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: '#/definitions/availableStock'
+      childItemsAvailabilities:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: '#/definitions/childItemAvailability'
+  itemKey:
+    type: object
+    required:
+      - itemNo
+      - itemType
+    properties:
+      itemType:
+        type: string
+        example: ART
+        description: 'Type of the Item, e.g. ''ART'', ''SPR'', ''SGR''.'
+        enum:
+          - ART
+          - SPR
+          - SGR
+      itemNo:
+        type: string
+        example: "00263850"
+        description: >-
+          The number of the item. Identifies an IKEA item together with the
+          type.
+        minLength: 8
+        maxLength: 15
+  classUnitKey:
+    type: object
+    required:
+      - classUnitCode
+      - classUnitType
+    properties:
+      classUnitType:
+        type: string
+        example: STO
+        description: 'Class unit type (Currently supported: STO,RU)'
+        enum:
+          - RU
+          - STO
+      classUnitCode:
+        type: string
+        example: '445'
+        description: Class unit code (for example 'SE' or '445')
+        minLength: 2
+        maxLength: 5
+  availableStock:
+    type: object
+    properties:
+      type:
+        type: string
+        enum:
+          - CASHCARRY
+      quantity:
+        type: number
+        format: decimal
+        x-omitempty: false
+      updateDateTime:
+        type: string
+        format: date-time
+      probabilities:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: '#/definitions/availableStockProbability'
+      restocks:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: '#/definitions/availableStockRestock'
+  availableStockProbability:
+    type: object
+    properties:
+      communication:
+        $ref: '#/definitions/probabilityCommunication'
+      type:
+        type: string
+        enum:
+          - THIS_DAY
+      updateDateTime:
+        type: string
+        format: date-time
+  probabilityCommunication:
+    type: object
+    properties:
+      messageType:
+        type: string
+        enum:
+          - OUT_OF_STOCK
+          - LOW_IN_STOCK
+          - MEDIUM_IN_STOCK
+          - HIGH_IN_STOCK
+      colour:
+        $ref: '#/definitions/probabilityColour'
+  probabilityColour:
+    type: object
+    properties:
+      rgbHex:
+        type: string
+        example: ''
+      rgbDec:
+        type: string
+        example: ''
+  availableStockRestock:
+    type: object
+    required:
+      - type
+      - reliability
+      - earliestDate
+      - updateDateTime
+    properties:
+      type:
+        type: string
+        x-nullable: false
+        enum:
+          - INTERNAL
+          - DELIVERY
+      quantity:
+        type: number
+        format: decimal
+      earliestDate:
+        type: string
+        format: date
+      latestDate:
+        type: string
+        format: date
+        x-nullable: true
+      reliability:
+        $ref: '#/definitions/highMediumLowDef'
+      updateDateTime:
+        type: string
+        format: date-time
+  highMediumLowDef:
+    type: string
+    enum:
+      - HIGH
+      - MEDIUM
+      - LOW
+  childItemAvailability:
+    type: object
+    required:
+      - isInCashAndCarryRange
+      - isInHomeDeliveryRange
+      - itemKey
+    properties:
+      itemKey:
+        $ref: '#/definitions/itemKey'
+      isInCashAndCarryRange:
+        type: boolean
+      isInHomeDeliveryRange:
+        type: boolean
+      availableStocks:
+        type: array
+        x-omitempty: true
+        items:
+          $ref: '#/definitions/availableStock'
+  status:
+    properties:
+      code:
+        type: integer
+        format: int32
+        description: |-
+          The status code, which typically should be a HTTP status code.
+          It can also be an enum value of google.rpc.Code. 
+      details:
+        type: array
+        description: >-
+          A list of messages that carry the error details. There is a common set
+          of
+
+          message types for APIs to use.
+        items:
+          type: object
+          additionalProperties:
+            description: Properties of the object. Contains field @type with type URL.
+      message:
+        type: string
+        description: |-
+          A developer-facing error message, which should be in English. Any
+          user-facing error message should be localized and sent in the
+          google.rpc.Status.details field, or localized by the client.
+    description: >-
+      The `Status` type defines a logical error model that is suitable for
+      different
+
+      programming environments, including REST APIs and RPC APIs. It is used by
+
+      [gRPC](https://github.com/grpc). The error model is designed to be:
+
+      - Simple to use and understand for most users
+
+      - Flexible enough to meet unexpected needs
+
+      # Overview
+      The `Status` message contains three pieces of data: error code, error
+      message, and error details. The error code should be an enum value of
+      google.rpc.Code, but it may accept additional error codes if needed.  The
+      error message should be a developer-facing English message that helps
+      developers *understand* and *resolve* the error. If a localized
+      user-facing error message is needed, put the localized message in the error details or
+      localize it in the client. The optional error details may contain arbitrary
+      information about the error. There is a predefined set of error detail types
+      in the package `google.rpc` that can be used for common error conditions.
+
+      # Language mapping
+      The `Status` message is the logical representation of the error model, but
+      it is not necessarily the actual wire format. When the `Status` message is
+      exposed in different client libraries and different wire protocols, it can
+      be mapped differently. For example, it will likely be mapped to some
+      exceptions in Java, but more likely mapped to some error codes in C.
+
+      # Other uses
+      The error model and the `Status` message can be used in a variety of
+      environments, either with or without APIs, to provide a
+      consistent developer experience across different environments.
+
+      Example uses of this error model include:
+
+      - Partial errors. If a service needs to return partial errors to the
+      client,
+          it may embed the `Status` in the normal response to indicate the partial
+          errors.
+      - Workflow errors. A typical workflow has multiple steps. Each step may
+          have a `Status` message for error reporting.
+      - Batch operations. If a client uses batch request and batch response, the
+          `Status` message should be used directly inside batch response, one for
+          each error sub-response.
+      - Asynchronous operations. If an API call embeds asynchronous operation
+          results in its response, the status of those operations should be
+          represented directly using the `Status` message.
+      - Logging. If some API errors are stored in logs, the message `Status`
+      could be used directly after any stripping needed for security/privacy reasons.
+    x-proto-type: google.rpc.Status
+  traceId:
+    type: string
+    description: >-
+      The unique ID connected to this specific request. Can be used by support
+      to trace the error
+    example: traceId
+securityDefinitions:
+  Client ID:
+    description: ''
+    in: header
+    name: X-IBM-Client-Id
+    type: apiKey
+  Client Secret:
+    type: apiKey
+    name: X-IBM-Client-Secret
+    in: header
+    description: ''
+security:
+  - Client ID: []
+    Client Secret: []
+x-ibm-configuration:
+  gateway: datapower-gateway
+  cors:
+    enabled: true
+  properties:
+    Backends:
+      value: ''
+      description: ''
+      encoded: false
+  catalogs:
+    ppe:
+      properties:
+        Backends: 'https://cia-api-4gpyq5vkqa-ew.a.run.app'
+  assembly:
+    execute:
+      - proxy:
+          title: proxy
+          timeout: 10
+          verb: keep
+          cache-response: no-cache
+          cache-ttl: 900
+          version: 1.0.0
+          target-url: $(Backends)$(request.path)
+    catch: []
